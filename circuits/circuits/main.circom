@@ -1,9 +1,9 @@
 pragma circom 2.0.0;
 
 
-include "../../node_modules/circomlib/circuits/bitify.circom";
-include "../../node_modules/circomlib/circuits/pedersen.circom";
-include "../../node_modules/circomlib/circuits/mimcsponge.circom";
+include "../circomlib/circuits/bitify.circom";
+include "../circomlib/circuits/pedersen.circom";
+include "../circomlib/circuits/mimcsponge.circom";
 
 
 // Computes MiMC([left, right])
@@ -106,7 +106,7 @@ template DummyCommitmentHasher() {
 // Verifies that commitment that corresponds to given secret and nullifier is included in the merkle tree of deposits
 template Withdraw(levels) {
     signal input step_in[2];
-    signal input step_out[2];
+    signal output step_out[2];
 
     signal input recipient; // not taking part in any computations
     signal input relayer;  // not taking part in any computations
@@ -123,13 +123,13 @@ template Withdraw(levels) {
     hasher.nullifier <== nullifier;
     hasher.secret <== secret;
 
-    step_in[0] === step_out[0];
+    step_out[0] <== step_in[0];
 
     component stateHasher = HashLeftRight();
 
     stateHasher.left <== step_in[1];
     stateHasher.right <== hasher.nullifierHash;
-    stateHasher.hash === step_out[1];
+    step_out[1] <== stateHasher.hash;
 
     component tree = MerkleTreeChecker(levels);
     tree.leaf <== hasher.commitment;
@@ -152,4 +152,4 @@ template Withdraw(levels) {
     refundSquare <== refund * refund;
 }
 
-component main{public [step_in, step_out]} = Withdraw(20);
+component main{ public [step_in] } = Withdraw(20);
