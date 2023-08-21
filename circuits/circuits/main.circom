@@ -105,45 +105,51 @@ template DummyCommitmentHasher() {
 
 // Verifies that commitment that corresponds to given secret and nullifier is included in the merkle tree of deposits
 template Withdraw(levels) {
-    signal input root;
-    signal input nullifierHash;
-    signal input blacklistRoot;
+    signal input step_in[2];
+    signal input step_out[2];
 
-    // private inputs
+    signal input recipient; // not taking part in any computations
+    signal input relayer;  // not taking part in any computations
+    signal input fee;      // not taking part in any computations
+    signal input refund;   // not taking part in any computations
     signal input nullifier;
     signal input secret;
+    signal input nullifierHash;
     signal input pathElements[levels];
     signal input pathIndices[levels];
 
-    signal input blacklistPathElements[254];
-    signal input blacklistPathIndices[254];
-
     component hasher = CommitmentHasher();
+
     hasher.nullifier <== nullifier;
     hasher.secret <== secret;
-    hasher.nullifierHash === nullifierHash;
+
+    step_in[0] === step_out[0];
+
+    component stateHasher = HashLeftRight();
+
+    stateHasher.left <== step_in[1];
+    stateHasher.right <== hasher.nullifierHash;
+    stateHasher.hash === step_out[1];
 
     component tree = MerkleTreeChecker(levels);
     tree.leaf <== hasher.commitment;
-    tree.root <== root;
+    tree.root <== step_in[0];
     for (var i = 0; i < levels; i++) {
         tree.pathElements[i] <== pathElements[i];
         tree.pathIndices[i] <== pathIndices[i];
     }
 
-    component blacklistTree = MerkleTreeChecker(254);
-    blacklistTree.leaf <== 21663839004416932945382355908790599225266501822907911457504978515578255421292;
-    blacklistTree.root <== blacklistRoot;
-    for (var i = 0; i < 254; i++) {
-        blacklistTree.pathElements[i] <== blacklistPathElements[i];
-        blacklistTree.pathIndices[i] <== blacklistPathIndices[i];
-    }
-
-    component commitmentBits = Bits2Num(254);
-    for(var i = 0; i < 254; i++) {
-        commitmentBits.in[i] <== blacklistPathIndices[i];
-    }
-    commitmentBits.out === hasher.commitment;
+    // Add hidden signals to make sure that tampering with recipient or fee will invalidate the snark proof
+    // Most likely it is not required, but it's better to stay on the safe side and it only takes 2 constraints
+    // Squares are used to prevent optimizer from removing those constraints
+    signal recipientSquare;
+    signal feeSquare;
+    signal relayerSquare;
+    signal refundSquare;
+    recipientSquare <== recipient * recipient;
+    feeSquare <== fee * fee;
+    relayerSquare <== relayer * relayer;
+    refundSquare <== refund * refund;
 }
 
-component main {public [root, blacklistRoot, nullifierHash]} = Withdraw(20);
+component main{public [step_in, step_out]} = Withdraw(20);
